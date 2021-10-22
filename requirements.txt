@@ -1,0 +1,9 @@
+matplotlib==3.4.2
+numpy==1.19.5
+tensorflow==2.5.0
+scipy==1.6.3
+pandas==1.2.4
+keras_tuner==1.0.2
+joblib==1.0.1
+preprocess==2.0.0
+scikit_learn==1.0
