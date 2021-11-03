@@ -15,6 +15,8 @@ from datetime import datetime, date
 from joblib import dump, load
 import os
 import json
+import csv
+import math
 
 class RNN:
     '''
@@ -116,6 +118,7 @@ class RNN:
         X_val = np.array(X_val)
         y_val = np.array(y_val)
         
+        # Output the shapes of training and testing data.
         print(f'Shape of training data: {X_train.shape}')
         print(f'Shape of testing data: {X_val.shape}')
         
@@ -141,20 +144,62 @@ class RNN:
         
         return preds, y_val
         
-    def plot_preds(self, preds, y_val):
+    def plot_preds(self, preds, y_val, low=[], up=[], conf=0.9):
         '''
         Producing plots of predictions with the measured values as time series.
-        Inputs: predicted and measured values as numpy arrays
+        Inputs: predicted and measured values as numpy arrays.
         '''
+        
+        # Number of instances to plot.
+        if len(low) != 0:   # Check whether the list is empty.
+            rounds = len(low)
+        else:
+            rounds = len(preds)
+        
         plt.figure()
         
-        plt.plot(preds, color='navy', label='Predicted')
-        plt.plot(y_val, color='darkorange', label='Measured', marker='*')
+        plt.plot(preds[:rounds], color='navy', label='Predicted')
+        plt.plot(y_val[:rounds], color='darkorange', label='Measured', marker='*')
+        if len(low) != 0:     # Check whether the list is empty.
+            plt.fill_between(range(rounds), (preds[:rounds,0])+(low[:,0]), (preds[:rounds,0])+(up[:,0]), color='gray', alpha=0.25, label=f'{round(conf*100)}% prediction interval')
         plt.legend()
         plt.grid()
         plt.title(f'Predictions for {self.quant[0]} with {self.name}.')
         
         plt.show()
+        
+    def load_intervals(self, int_path, conf=0.9):
+        '''
+        Method for loading desired prediction intervals for ML forecasts.
+        Inputs: path to the prediction interval .csv file, confidence level as float (0.5-0.99)
+        '''
+        
+        # Load the predictions
+        with open(int_path) as csvf:
+            
+            read_fil = csv.reader(csvf)
+            percs = list(read_fil)
+            
+        percs = np.array([obj for obj in percs if obj])
+        
+        low_ind = round(((1-conf)/2 - 0.01) * 100)
+        up_ind = round((conf + (1-conf)/2 - 0.01) * 100)
+        
+        # Select the desired intervals bounds. Reshape is necessary for following target inversion.
+        lower, upper = percs[:,low_ind].reshape(len(percs), 1), percs[:,up_ind].reshape(len(percs), 1)
+        
+        return lower, upper
+        
+        #plt.figure()
+        #
+        #plt.plot(preds, label='Predicted')
+        #plt.plot(y_val, label='Measured', marker='*')
+        #plt.fill_between(range(len(preds)), (preds)+(percs[:,low_ind]), (preds)+(percs[:,up_ind]), color='gray', alpha=0.25, label=f'{round(100*conf)}% prediction interval')
+        #plt.legend()
+        #
+        #plt.show()
+        
+        
         
     def save(self, path=rf'{os.getcwd()}'):
         '''
@@ -167,9 +212,9 @@ class RNN:
         new_fold_path = rf'{path}/{self.name}_{self.quant[0]}_{str(self.date)}'
         if not os.path.exists(new_fold_path):    # Test whether the directory already exists
             os.makedirs(new_fold_path)
-            print(f'Folder created on path: {new_fold_path}')
+            print(f'Folder created on path: {new_fold_path}.')
         else:
-            print(f'Savings results to {new_fold_path}')
+            print(f'Savings results to {new_fold_path}.')
         
         # Save model to folder
         self.model.save(rf'{new_fold_path}/model.h5')
@@ -213,6 +258,111 @@ class RNN:
         self.date = var_dict["date"]
         
         print('Other variables loaded.')
+        
+    def prediction_interval(self, X_train, y_train, x0, path=rf'{os.getcwd()}'):
+        '''
+        Compute bootstrap prediction interval around the models prediction on single data point x0.
+        Inputs: pre-trained model, training input data, training output data, new input data row, number of rows to save,
+                path for model saving.
+        Output: Percentiles 0-100 for prediction intervals
+        '''
+        
+        # Define output path for saving the percentile results.
+        new_fold_path = rf'{path}/{self.name}_{self.quant[0]}_{str(self.date)}'
+        if not os.path.exists(new_fold_path):    # Test whether the directory already exists
+            os.makedirs(new_fold_path)
+            print(f'Folder created on path: {new_fold_path}.')
+        else:
+            print(f'Savings prediction intervals to {new_fold_path}.')
+        
+        # Local copy of the machine learning model. Done dut to weight and bias initialization done in the script.
+        model = self.model
+        
+        # Number of training samples
+        n = X_train.shape[0]
+        
+        # Calculate the next prediction to be output in the end
+        pred_x0 = model.predict(np.reshape(x0, (1, x0.shape[0], x0.shape[1])))
+        
+        # Calculate training residuals
+        preds = model.predict(X_train)
+        train_res = y_train - preds
+        
+        # Number of bootstrap samples
+        n_boots = np.sqrt(n).astype(int)
+        
+        # Compute bootstrap predictions and validation residuals
+        boot_preds, val_res = np.empty(n_boots), []
+        
+        for b in range(n_boots):
+            
+            # Reset model weights, not straightforward with tensorflow Recurrent Neural Networks
+            for ix, layer in enumerate(model.layers):
+                if hasattr(self.model.layers[ix], 'recurrent_initializer'):
+                    weight_initializer = model.layers[ix].kernel_initializer
+                    bias_initializer = model.layers[ix].bias_initializer
+                    recurr_init = model.layers[ix].recurrent_initializer
+
+                    old_weights, old_biases, old_recurrent = model.layers[ix].get_weights()
+
+                    model.layers[ix].set_weights([
+                        weight_initializer(shape=old_weights.shape),
+                        bias_initializer(shape=old_biases.shape),
+                        recurr_init(shape=old_recurrent.shape)])
+                elif hasattr(model.layers[ix], 'kernel_initializer') and hasattr(model.layers[ix], 'bias_initializer'):
+                    weight_initializer = model.layers[ix].kernel_initializer
+                    bias_initializer = model.layers[ix].bias_initializer
+                    
+                    old_weights, old_biases = model.layers[ix].get_weights()
+                    
+                    model.layers[ix].set_weights([
+                        weight_initializer(shape=old_weights.shape),
+                        bias_initializer(shape=len(old_biases))])
+
+            
+            print(f'Starting bootstrap {b+1}/{n_boots}')
+            train_idx = np.random.choice(range(n), size=n, replace=True)    # Draw the training indexes with replacement
+            val_idx = np.array([idx for idx in range(n) if idx not in train_idx])   # Use the ones left after training as validation data
+            
+            # Train model with training data, validate with validation data. Early Stopping stops training after validation performance
+            # starts to deteriorate.
+            model.fit(X_train[train_idx], y_train[train_idx], epochs=100, verbose=0, validation_data=(X_train[val_idx], y_train[val_idx]),
+                        callbacks=EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True))   
+                
+            preds_val = model.predict(X_train[val_idx]) # Validation predictions
+            
+            val_res.append(y_train[val_idx] - preds_val)    # Calculate validation residuals
+            boot_preds[b] = model.predict(np.reshape(x0, (1, x0.shape[0], x0.shape[1])))   # Predict with bootstrapped model
+            
+        boot_preds -= np.mean(boot_preds)   # Center bootstrap predictions
+        val_res = np.concatenate(val_res, axis=None)    # Flattening predictions to a single array
+        
+        # Take percentiles of training and validation residuals to compare
+        val_res = np.percentile(val_res, q=np.arange(100))
+        train_res = np.percentile(train_res, q=np.arange(100))
+        
+        # Estimates for the relationship between bias and variance
+        no_inf_err = np.mean(np.abs(np.random.permutation(y_train) - np.random.permutation(preds)))
+        gener = np.abs(val_res.mean() - train_res.mean())
+        no_inf_val = np.abs(no_inf_err - train_res)
+        rel_overfitting_rate = np.mean(gener / no_inf_val)
+        w = .632 / (1 - .368*rel_overfitting_rate)
+        res = (1-w) * train_res + w*val_res
+        
+        # Construct interval boundaries
+        C = np.array([m + o for m in boot_preds for o in res])
+        percs = np.percentile(C, q=np.arange(0, 101))
+        
+        # Saving results to model folder...
+        print(f'Saving results to {new_fold_path}.')
+        
+        # Writing rows to file.
+        with open(rf'{new_fold_path}/pred_ints.csv', 'a') as f:
+            write = csv.writer(f)
+            write.writerow(percs)
+        
+        print('----------------------------------------------------------------------------------------------')
+        
         
 
 class CVTuner(kt.engine.tuner.Tuner):
