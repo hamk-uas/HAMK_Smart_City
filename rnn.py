@@ -476,7 +476,7 @@ class VanillaRNN(RNN):
         Inputs: Preprocessed input and target data as numpy arrays, maximum epochs for training as int, model compositions to be tested as int,
                 hyperparameter search space with fitting default values.
         '''
-        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='GRU', input_shape=(X.shape[1], X.shape[2]), units=[10,100],
+        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='SimpleRNN', input_shape=(X.shape[1], X.shape[2]), units=[10,100],
                             act=act, layers=layers, lr=lr),
                             oracle=kt.oracles.BayesianOptimization(objective='val_loss', max_trials=max_trials),
                             directory=os.getcwd(),
@@ -528,7 +528,7 @@ class MyLSTM(RNN):
         Inputs: Preprocessed input and target data as numpy arrays, maximum epochs for training as int, model compositions to be tested as int,
                 hyperparameter search space with fitting default values.
         '''
-        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='GRU', input_shape=(X.shape[1], X.shape[2]), units=[10,100],
+        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='LSTM', input_shape=(X.shape[1], X.shape[2]), units=[10,100],
                             act=act, layers=layers, lr=lr),
                             oracle=kt.oracles.BayesianOptimization(objective='val_loss', max_trials=max_trials),
                             directory=os.getcwd(),
