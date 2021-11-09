@@ -1,28 +1,54 @@
-import numpy as np
+from rnn import MyGRU, MyLSTM, VanillaRNN, RNN
 import pandas as pd
+import numpy as np
 from scipy.stats import percentileofscore
-from tensorflow import keras
-from preprocess import preprocess
 import random
-import matplotlib.pyplot as plt
-from datetime import datetime
-from inv_target import inv_target
+from datetime import datetime, date
+import os
 
-# Input the path of the file where the optimized values and optional gifs will be saved
-output_path = ''
-gifs_path = ''
+ener_model = MyGRU(quant=['Energy_consumption'], seq=12, fut=0, parameters=['Outside_humidity',
+              'Solar_irradiance',
+              'CO2_concentration',
+              'hours_sin',
+              'hours_cos',
+              'weekday_sin',
+              'weekday_cos',
+              'Domestic_water_network_1_primary_valve',
+              'Domestic_water_network_2_primary_valve',
+              'District_heat_temperature',
+              'Outside_temperature_average',
+              'Ventilation_network_1_temperature',
+              'Ventilation_network_2_temperature',
+              'Radiator_network_1_temperature',
+              'Radiator_network_2_temperature'])
+              
+temp_model = MyGRU(quant=['Inside_temperature'], seq=12, fut=0, parameters=['Outside_humidity',
+              'Solar_irradiance',
+              'CO2_concentration',
+              'hours_sin',
+              'hours_cos',
+              'weekday_sin',
+              'weekday_cos',
+              'Domestic_water_network_1_primary_valve',
+              'Domestic_water_network_2_primary_valve',
+              'District_heat_temperature',
+              'Outside_temperature_average',
+              'Ventilation_network_1_temperature',
+              'Ventilation_network_2_temperature',
+              'Radiator_network_1_temperature',
+              'Radiator_network_2_temperature'])
 
 # DEFINE PATHS FOR LOADING ENERGY AND TEMPERATURE MODELS
-ener_path = r''
-temp_path = r''
-ener_model = keras.models.load_model(f'{ener_path}')
-temp_model = keras.models.load_model(f'{temp_path}')
+ener_path = r'C:\Users\iivo210\Documents\HAMK_Smart_City\GRU_Energy_consumption_2021-10-29'
+temp_path = r'C:\Users\iivo210\Documents\HAMK_Smart_City\GRU_Inside_temperature_2021-11-09'
+ener_model.load(f'{ener_path}')
+temp_model.load(f'{temp_path}')
 
 # SET CORRECT SEQUENCE LENGTH BASED ON AFOREMENTIONED MODELS
-SEQ_LEN = 4
+SEQ_LEN = ener_model.seq
 
 # LOAD THE DATA USED IN OPTIMIZATION
-data_path = ''
+data_path = r'C:\Users\iivo210\Documents\HAMK_Smart_City\data_example.csv'
 data = pd.read_csv(rf'{data_path}')
 
 # HOW MANY ROUNDS TO OPTIMIZE?
@@ -39,14 +65,15 @@ print('-------------------------------------------------------------------------
 start = datetime.now()
 
 # Compile sequential data for energy consumption modeling
-X_train, y_train, X_val, y_val, scaler = preprocess(raw_data=data, quant=['energy', 'temperature'], seq=SEQ_LEN, fut=1)
+X_train, y_train_ener, X_val, y_val_ener = ener_model.preprocess(raw_data=data)
+X_train, y_train_temp, X_val, y_val_temp = temp_model.preprocess(raw_data=data)
 
-print(f'Shape of training data X {X_train.shape}, y {y_train.shape}')
-print(f'Shape of validation data: X {X_val.shape}, y {y_val.shape}')
+print(f'Shape of training data X {X_train.shape}, y {y_train_ener.shape}')
+print(f'Shape of validation data: X {X_val.shape}, y {y_val_ener.shape}')
 
 # Set cost function parameters, default values should work
-low_temp = percentileofscore(data.temperature, lower_boundary)/100  # lower temperature boundary scaled
-high_temp = percentileofscore(data.temperature, upper_boundary)/100 # upper temperature boundary scaled
+low_temp = percentileofscore(data['Inside_temperature'], lower_boundary)/100  # lower temperature boundary scaled
+high_temp = percentileofscore(data['Inside_temperature'], upper_boundary)/100 # upper temperature boundary scaled
 print(f'Lower temperature boundary: {low_temp}')
 print(f'Upper temperature boundary: {high_temp}')
 p1 = 3 # Exponential Penalty for falling below ideal temperature range
@@ -75,8 +102,8 @@ for val_point in range(opt_rounds):
     inputs = np.array([np.concatenate((X_val[val_point,:-1], inputs[k]), axis=0) for k in range(n)]) # Concatenate the previous time instants to sequence
     
     # Make initial cost function values for all particles
-    ener = np.array([ener_model.predict(np.reshape(inputs[k], (1, inputs.shape[1], inputs.shape[2])), verbose=0)[0][0] for k in range(n)])
-    temp = np.array([temp_model.predict(np.reshape(inputs[k], (1, inputs.shape[1], inputs.shape[2])), verbose=0)[0][0] for k in range(n)])
+    ener = np.array([ener_model.model.predict(np.reshape(inputs[k], (1, inputs.shape[1], inputs.shape[2])), verbose=0)[0][0] for k in range(n)])
+    temp = np.array([temp_model.model.predict(np.reshape(inputs[k], (1, inputs.shape[1], inputs.shape[2])), verbose=0)[0][0] for k in range(n)])
     print(f'Initial energy predictions in round {val_point+1}:')
     print(ener)
     print(f'Initial temperature predictions in round {val_point+1}:')
@@ -117,8 +144,8 @@ for val_point in range(opt_rounds):
         
         # Use models to calculate cost function value for each particle position
         # Cost function consists of energy prediction and penalties for non-optimal room temperature values
-        ener =  np.array([ener_model.predict(np.reshape(inputs[k], (1, inputs.shape[1], inputs.shape[2])), verbose=0)[0][0] for k in range(n)]) # Energy predictions in cost function
-        temp = np.array([temp_model.predict(np.reshape(inputs[k], (1, inputs.shape[1], inputs.shape[2])), verbose=0)[0][0] for k in range(n)]) # Temperature predictions in cost function
+        ener =  np.array([ener_model.model.predict(np.reshape(inputs[k], (1, inputs.shape[1], inputs.shape[2])), verbose=0)[0][0] for k in range(n)]) # Energy predictions in cost function
+        temp = np.array([temp_model.model.predict(np.reshape(inputs[k], (1, inputs.shape[1], inputs.shape[2])), verbose=0)[0][0] for k in range(n)]) # Temperature predictions in cost function
         print(f'Energy predictions, round {val_point+1}, iter. {i+1}:')
         print(ener)
         print(f'Temperature predictions, round {val_point+1}, iter. {i+1}:')
@@ -185,13 +212,19 @@ for val_point in range(opt_rounds):
     print('---------------------------------------------------------------------------------------------------------------------------')
 
 # Inverse transform the target values before storage
-optimized, y_val = inv_target(X_val, optimized, y_val, scaler)
+opt_ener, y_val_ener = ener_model.inv_target(X_val, optimized[:,0], y_val_ener)
+opt_temp, y_val_temp = temp_model.inv_target(X_val, optimized[:,1], y_val_temp)
   
 # Save the optimized and measured values to csv for later plotting/comparison
-df = pd.DataFrame(data={'ener_opt': optimized[:,0], 'ener_meas': y_val[:,0], 'temp_opt': optimized[:,1], 'temp_meas': y_val[:,1]})
+df = pd.DataFrame(data={'ener_opt': opt_ener[:,0], 'ener_meas': y_val_ener[:,0], 'temp_opt': opt_temp[:,0], 'temp_meas': y_val_temp[:,0]})
 
-# Save the output
-df.to_csv(output_path, index=False)
+print(df)
+
+# Save the results to the directory of energy model
+res_path = rf'{ener_path}\opt_results_{str(date.today())}.csv'
+df.to_csv(res_path, index=False)
+    
+print(f'Results saved to {res_path}...')
 
 # How long did it take?
 print('Script runtime:')

@@ -124,7 +124,7 @@ class RNN:
         
         return X_train, y_train, X_val, y_val
         
-    def inv_target(self, X, preds, y_val, scaler):
+    def inv_target(self, X, preds, y_val):
         '''
         Method for inverting the scaling target variable
         Inputs: 3-dimensional data matrix used to train (or validate) the model, predictions obtained using the model,
@@ -133,14 +133,11 @@ class RNN:
         Output: Inversely transformed predictions and validation vectors
         '''
         
-        # The number of quantities used in optimization
-        N = np.array(preds).shape[1]
+        preds = np.concatenate((X[:len(preds),-1], np.array(preds).reshape(len(preds), 1)), axis=1) # Reshape is necessary as there are issues with dimensions
+        y_val = np.concatenate((X[:len(preds),-1], np.array(y_val[:len(preds)]).reshape(len(preds), 1)), axis=1)
         
-        preds = np.concatenate((X[:len(preds),-1], np.array(preds).reshape(len(preds), N)), axis=1) # Reshape is necessary as there are issues with dimensions
-        y_val = np.concatenate((X[:len(preds),-1], np.array(y_val[:len(preds)]).reshape(len(preds), N)), axis=1)
-        
-        preds = scaler.inverse_transform(preds)[:,-N:]
-        y_val = scaler.inverse_transform(y_val)[:,-N:]
+        preds = self.scaler.inverse_transform(preds)[:,-1:]
+        y_val = self.scaler.inverse_transform(y_val)[:,-1:]
         
         return preds, y_val
         
