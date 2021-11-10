@@ -405,7 +405,10 @@ class RNN_HyperModel(kt.HyperModel):
         
         # Define hyperparameter search space
         hp_units = hp.Int('units', min_value=self.units[0], max_value=self.units[1], step=10)
-        hp_layers = hp.Int('layers', min_value=self.layers[0], max_value=self.layers[1])
+        try:
+            hp_layers = hp.Int('layers', min_value=self.layers[0], max_value=self.layers[1])
+        except IndexError:
+            hp_layers = hp.Fixed('layers', value=self.layers[0])
         hp_act = hp.Choice('activation function', values=self.act)
         hp_lr = hp.Choice('learning rate', values=self.lr)
         
