@@ -5,9 +5,11 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, GRU, LSTM, SimpleRNN, BatchNormalization
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.regularizers import L2
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import KFold
+from sklearn.model_selection import train_test_split
 from collections import deque
 import matplotlib.pyplot as plt
 import kerastuner as kt
@@ -87,6 +89,8 @@ class RNN:
                     sequences_train.append([np.array(prev_days_train), pd.DataFrame(df_train).values[count+1][-l_quant:]])
                 except IndexError:
                     break
+                    
+        print(len(sequences_train))
             
         for count, row in enumerate(pd.DataFrame(df_val).values):
             prev_days_val.append([val for val in row[:-l_quant]]) # store everything but the target values
@@ -101,7 +105,7 @@ class RNN:
                 
         # Iterating through the sequences in order to differentiate X and y
         X_train = []
-        y_train = []
+        y_train = [] 
         X_val = []
         y_val = []
 
@@ -159,6 +163,8 @@ class RNN:
         plt.plot(y_val[:rounds], color='darkorange', label='Measured', marker='*')
         if len(low) != 0:     # Check whether the list is empty.
             plt.fill_between(range(rounds), (preds[:rounds,0])+(low[:,0]), (preds[:rounds,0])+(up[:,0]), color='gray', alpha=0.25, label=f'{round(conf*100)}% prediction interval')
+            print((preds[:rounds,0]))
+            print((low[:,0]))
         plt.legend()
         plt.grid()
         plt.title(f'Predictions for {self.quant[0]} with {self.name}.')
@@ -181,7 +187,7 @@ class RNN:
         
         low_ind = round(((1-conf)/2 - 0.01) * 100)
         up_ind = round((conf + (1-conf)/2 - 0.01) * 100)
-        
+
         # Select the desired intervals bounds. Reshape is necessary for following target inversion.
         lower, upper = percs[:,low_ind].reshape(len(percs), 1), percs[:,up_ind].reshape(len(percs), 1)
         
@@ -329,7 +335,8 @@ class RNN:
             preds_val = model.predict(X_train[val_idx]) # Validation predictions
             
             val_res.append(y_train[val_idx] - preds_val)    # Calculate validation residuals
-            boot_preds[b] = model.predict(np.reshape(x0, (1, x0.shape[0], x0.shape[1])))   # Predict with bootstrapped model
+            boot_preds[b] = model.predict(np.reshape(x0, (1, x0.shape[0], x0.shape[1])))# Predict with bootstrapped model
+            print(self.scaler.inverse_transform([list(range(15)) + [boot_preds[b]]]))
             
         boot_preds -= np.mean(boot_preds)   # Center bootstrap predictions
         val_res = np.concatenate(val_res, axis=None)    # Flattening predictions to a single array
@@ -368,7 +375,7 @@ class CVTuner(kt.engine.tuner.Tuner):
     By default, 5-fold CV is implemented.
     '''
     
-    def run_trial(self, trial, x, y, batch_size=32, epochs=1, patience=20):
+    def run_trial(self, trial, x, y, batch_size=1544, epochs=1, patience=20):
         cv = KFold(5)
         val_losses = []
         for train_indices, test_indices in cv.split(x):
@@ -390,13 +397,18 @@ class RNN_HyperModel(kt.HyperModel):
             learning rate values as list, suitable activation functions as a list.
     '''
 
-    def __init__(self, mtype, input_shape, units, layers, lr, act):
+    def __init__(self, mtype, input_shape, units, layers, lr, act, reg_ker, reg_rec, reg_bias, drop, rec_drop):
         self.mtype = mtype
         self.input_shape = input_shape
         self.units = units
         self.layers = layers
         self.lr = lr
         self.act = act
+        self.reg_ker = reg_ker
+        self.reg_rec = reg_rec
+        self.reg_bias = reg_bias
+        self.drop = drop
+        self.rec_drop = rec_drop
 
     def build(self, hp):
         
@@ -411,6 +423,11 @@ class RNN_HyperModel(kt.HyperModel):
             hp_layers = hp.Fixed('layers', value=self.layers[0])
         hp_act = hp.Choice('activation function', values=self.act)
         hp_lr = hp.Choice('learning rate', values=self.lr)
+        hp_reg_ker = hp.Choice('kernel regulizer', values=self.reg_ker)
+        hp_reg_rec = hp.Choice('reccurent regulizer', values=self.reg_rec)
+        hp_reg_bias = hp.Choice('bias regulizer', values=self.reg_bias)
+        hp_drop = hp.Choice('dropout', values=self.drop)
+        hp_rec_drop = hp.Choice('reccurent dropout', values = self.rec_drop)
         
         # Select correct implementation of layer formation based on the model type.
         if self.mtype == 'SimpleRNN':
@@ -430,15 +447,15 @@ class RNN_HyperModel(kt.HyperModel):
         
             for i in range(hp_layers):
                 if i == 0 and max(range(hp_layers)) == 0:
-                    model.add(GRU(units=hp_units, activation=hp_act, input_shape=self.input_shape))
+                    model.add(GRU(units=hp_units, activation=hp_act, reg_ker = hp_reg_ker, reg_rec = hp_reg_rec, reg_bias = hp_reg_bias, dropout=hp_drop, recurrent_dropout=hp_rec_drop, input_shape=self.input_shape))
                 elif i == 0:
-                    model.add(GRU(units=hp_units, activation=hp_act, input_shape=self.input_shape, return_sequences=True))
+                    model.add(GRU(units=hp_units, activation=hp_act, reg_ker = hp_reg_ker, reg_rec = hp_reg_rec, reg_bias = hp_reg_bias, dropout=hp_drop, recurrent_dropout=hp_rec_drop, input_shape=self.input_shape, return_sequences=True))
                     model.add(BatchNormalization())
                 elif i < max(range(hp_layers)):
-                    model.add(GRU(units=hp_units, activation=hp_act, return_sequences=True))
+                    model.add(GRU(units=hp_units, activation=hp_act, reg_ker = hp_reg_ker, reg_rec = hp_reg_rec, reg_bias = hp_reg_bias, dropout=hp_drop, recurrent_dropout=hp_rec_drop, return_sequences=True))
                     model.add(BatchNormalization())
                 else:
-                    model.add(GRU(units=hp_units, activation=hp_act))
+                    model.add(GRU(units=hp_units, activation=hp_act, reg_ker = hp_reg_ker, reg_rec = hp_reg_rec, reg_bias = hp_reg_bias, dropout=hp_drop, recurrent_dropout=hp_rec_drop))
         elif self.mtype == 'LSTM':
             
             for i in range(hp_layers):
@@ -494,7 +511,7 @@ class MyGRU(RNN):
     '''
     Gated Recurrent Unit variant of RNN. Inherits all attributes and methods from parent class.
     '''
-    def fit(self, X, y, epochs, max_trials, units=[10, 100], act=['tanh'], layers=[1, 2], lr=[0.1, 0.01, 0.001]):
+    def fit(self, X, y, epochs, max_trials, units=[10, 100], act=['tanh'], layers=[1, 2], lr=[0.1, 0.01, 0.001], reg_ker=[L2(0.001), L2(0.01), L2(0.1)], reg_rec = [L2(0.001), L2(0.01), L2(0.1)], reg_bias = [L2(0.001), L2(0.01), L2(0.1)],  drop = [0.0, 0.1, 0.2, 0.3], rec_drop = [0.0, 0.1, 0.2, 0.3]):
         '''
         Fitting method performing hyperparameter optimization. Bayesian Optimization is used for finding correct
         direction in search space, while 5-fold cross-validation is used for measuring predictive performance of
@@ -503,18 +520,22 @@ class MyGRU(RNN):
                 hyperparameter search space with fitting default values.
         '''
         tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='GRU', input_shape=(X.shape[1], X.shape[2]), units=[10,100],
-                            act=act, layers=layers, lr=lr),
+                            act=act, layers=layers, lr=lr, reg_ker = reg_ker, reg_rec = reg_rec, reg_bias = reg_bias, drop = drop, rec_drop
+                                                  = rec_drop),
                             oracle=kt.oracles.BayesianOptimization(objective='val_loss', max_trials=max_trials),
                             directory=os.getcwd(),
                             project_name=f'GRU_{self.quant[0]}_{str(date.today())}', overwrite=True)
         
         tuner.search(X, y, epochs=epochs)
-        
-        print(tuner.results_summary())
-        
+                
+        print(tuner.results_summary(num_trials = max_trials))
         best = tuner.get_best_models(num_models=1)[0]
+        x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+        best.fit(x_train, y_train, batch_size=1544, validation_data=(x_test, y_test), epochs=1000)
         self.name = f'GRU'
         self.model = best
+        
+        
         
 class MyLSTM(RNN):
     '''

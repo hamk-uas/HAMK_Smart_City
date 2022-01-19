@@ -2,7 +2,7 @@ from rnn import MyGRU, MyLSTM, VanillaRNN, RNN
 import pandas as pd
 
 # Download the downsampled data frame from csv-file.
-raw_data = pd.read_csv(r'C:\Users\iivo210\Documents\HAMK_Smart_City\data_example.csv')
+raw_data = pd.read_csv(r'C:\Users\romat\Documents\GitHub\HAMK_Smart_City\data_example.csv')
 
 # Initialize the model with the required parameters.
 hvac_model = MyGRU(quant=['Inside_temperature'], seq=12, fut=0, parameters=['Outside_humidity',
