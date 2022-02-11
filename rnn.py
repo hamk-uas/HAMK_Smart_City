@@ -44,7 +44,7 @@ class RNN:
         Inputs: Downsampled data frame with desired parameters defined in class attribute list in headers
         Output: Training input data, training target data, testing input data, testing target data, sklearn scaler object for inverse transformations
         '''
-        raw_data.iloc[:,0] = pd.to_datetime(raw_data.iloc[:,0], format='%Y-%m-%d %H:%M:%S%z')
+        raw_data.iloc[:,0] = pd.to_datetime(raw_data.iloc[:,0], format='%Y-%m-%d %H:%M:%S') #Add "%H:%M:%S%z" for UTC
         vec = raw_data.iloc[:,0].values
         datetimes = np.array([[vec, vec], [vec, vec]], dtype = 'M8[ms]').astype('O')[0,1]
         raw_data['weekday'] = [t.timetuple().tm_wday for t in datetimes]
@@ -68,7 +68,7 @@ class RNN:
         self.parameters = [x for x in self.parameters if x not in self.quant]
         
         # Scale all data features to range [0,1]
-        self.scaler = MinMaxScaler()
+        self.scaler = MinMaxScaler((0, 1))
         df_train = self.scaler.fit_transform(df_train)
         df_val = self.scaler.transform(df_val)
         
@@ -157,7 +157,7 @@ class RNN:
         else:
             rounds = len(preds)
         
-        plt.figure()
+        plt.figure(figsize=(15, 6))
         
         plt.plot(preds[:rounds], color='navy', label='Predicted')
         plt.plot(y_val[:rounds], color='darkorange', label='Measured', marker='*')
@@ -375,7 +375,7 @@ class CVTuner(kt.engine.tuner.Tuner):
     By default, 5-fold CV is implemented.
     '''
     
-    def run_trial(self, trial, x, y, batch_size=1544, epochs=1, patience=20):
+    def run_trial(self, trial, x, y, batch_size=32, epochs=1, patience=20):
         cv = KFold(5)
         val_losses = []
         for train_indices, test_indices in cv.split(x):
@@ -397,18 +397,13 @@ class RNN_HyperModel(kt.HyperModel):
             learning rate values as list, suitable activation functions as a list.
     '''
 
-    def __init__(self, mtype, input_shape, units, layers, lr, act, reg_ker, reg_rec, reg_bias, drop, rec_drop):
+    def __init__(self, mtype, input_shape, units, layers, lr, act):
         self.mtype = mtype
         self.input_shape = input_shape
         self.units = units
         self.layers = layers
         self.lr = lr
         self.act = act
-        self.reg_ker = reg_ker
-        self.reg_rec = reg_rec
-        self.reg_bias = reg_bias
-        self.drop = drop
-        self.rec_drop = rec_drop
 
     def build(self, hp):
         
@@ -423,11 +418,6 @@ class RNN_HyperModel(kt.HyperModel):
             hp_layers = hp.Fixed('layers', value=self.layers[0])
         hp_act = hp.Choice('activation function', values=self.act)
         hp_lr = hp.Choice('learning rate', values=self.lr)
-        hp_reg_ker = hp.Choice('kernel regulizer', values=self.reg_ker)
-        hp_reg_rec = hp.Choice('reccurent regulizer', values=self.reg_rec)
-        hp_reg_bias = hp.Choice('bias regulizer', values=self.reg_bias)
-        hp_drop = hp.Choice('dropout', values=self.drop)
-        hp_rec_drop = hp.Choice('reccurent dropout', values = self.rec_drop)
         
         # Select correct implementation of layer formation based on the model type.
         if self.mtype == 'SimpleRNN':
@@ -444,18 +434,18 @@ class RNN_HyperModel(kt.HyperModel):
                 else:
                     model.add(SimpleRNN(units=hp_units, activation=hp_act))
         elif self.mtype == 'GRU':
-        
             for i in range(hp_layers):
                 if i == 0 and max(range(hp_layers)) == 0:
-                    model.add(GRU(units=hp_units, activation=hp_act, reg_ker = hp_reg_ker, reg_rec = hp_reg_rec, reg_bias = hp_reg_bias, dropout=hp_drop, recurrent_dropout=hp_rec_drop, input_shape=self.input_shape))
+                    model.add(GRU(units=hp_units, activation=hp_act, input_shape=self.input_shape))
                 elif i == 0:
-                    model.add(GRU(units=hp_units, activation=hp_act, reg_ker = hp_reg_ker, reg_rec = hp_reg_rec, reg_bias = hp_reg_bias, dropout=hp_drop, recurrent_dropout=hp_rec_drop, input_shape=self.input_shape, return_sequences=True))
+                    model.add(GRU(units=hp_units, activation=hp_act, input_shape=self.input_shape, return_sequences=True))
                     model.add(BatchNormalization())
                 elif i < max(range(hp_layers)):
-                    model.add(GRU(units=hp_units, activation=hp_act, reg_ker = hp_reg_ker, reg_rec = hp_reg_rec, reg_bias = hp_reg_bias, dropout=hp_drop, recurrent_dropout=hp_rec_drop, return_sequences=True))
+                    model.add(GRU(units=hp_units, activation=hp_act, return_sequences=True))
                     model.add(BatchNormalization())
                 else:
-                    model.add(GRU(units=hp_units, activation=hp_act, reg_ker = hp_reg_ker, reg_rec = hp_reg_rec, reg_bias = hp_reg_bias, dropout=hp_drop, recurrent_dropout=hp_rec_drop))
+                    model.add(GRU(units=hp_units, activation=hp_act))
+            
         elif self.mtype == 'LSTM':
             
             for i in range(hp_layers):
@@ -485,7 +475,7 @@ class VanillaRNN(RNN):
     '''
     Conventional Recurrent Neural Network model.
     '''
-    def fit(self, X, y, epochs, max_trials, units=[10, 100], act=['tanh', 'relu'], layers=[1, 2], lr=[0.1, 0.01, 0.001]):
+    def fit(self, X, y, epochs, max_trials, units=[10, 120], act=['tanh', 'relu'], layers=[1, 2], lr=[0.1, 0.01, 0.001]):
         '''
         Fitting method performing hyperparameter optimization. Bayesian Optimization is used for finding correct
         direction in search space, while 5-fold cross-validation is used for measuring predictive performance of
@@ -493,7 +483,7 @@ class VanillaRNN(RNN):
         Inputs: Preprocessed input and target data as numpy arrays, maximum epochs for training as int, model compositions to be tested as int,
                 hyperparameter search space with fitting default values.
         '''
-        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='SimpleRNN', input_shape=(X.shape[1], X.shape[2]), units=[10,100],
+        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='SimpleRNN', input_shape=(X.shape[1], X.shape[2]), units=[10,120],
                             act=act, layers=layers, lr=lr),
                             oracle=kt.oracles.BayesianOptimization(objective='val_loss', max_trials=max_trials),
                             directory=os.getcwd(),
@@ -511,7 +501,7 @@ class MyGRU(RNN):
     '''
     Gated Recurrent Unit variant of RNN. Inherits all attributes and methods from parent class.
     '''
-    def fit(self, X, y, epochs, max_trials, units=[10, 100], act=['tanh'], layers=[1, 2], lr=[0.1, 0.01, 0.001], reg_ker=[L2(0.001), L2(0.01), L2(0.1)], reg_rec = [L2(0.001), L2(0.01), L2(0.1)], reg_bias = [L2(0.001), L2(0.01), L2(0.1)],  drop = [0.0, 0.1, 0.2, 0.3], rec_drop = [0.0, 0.1, 0.2, 0.3]):
+    def fit(self, X, y, epochs, max_trials, units=[10, 120], act=['tanh'], layers=[1, 2], lr=[0.1, 0.01, 0.001]):
         '''
         Fitting method performing hyperparameter optimization. Bayesian Optimization is used for finding correct
         direction in search space, while 5-fold cross-validation is used for measuring predictive performance of
@@ -519,9 +509,8 @@ class MyGRU(RNN):
         Inputs: Preprocessed input and target data as numpy arrays, maximum epochs for training as int, model compositions to be tested as int,
                 hyperparameter search space with fitting default values.
         '''
-        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='GRU', input_shape=(X.shape[1], X.shape[2]), units=[10,100],
-                            act=act, layers=layers, lr=lr, reg_ker = reg_ker, reg_rec = reg_rec, reg_bias = reg_bias, drop = drop, rec_drop
-                                                  = rec_drop),
+        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='GRU', input_shape=(X.shape[1], X.shape[2]), units=[10, 120],
+                            act=act, layers=layers, lr=lr),
                             oracle=kt.oracles.BayesianOptimization(objective='val_loss', max_trials=max_trials),
                             directory=os.getcwd(),
                             project_name=f'GRU_{self.quant[0]}_{str(date.today())}', overwrite=True)
@@ -531,7 +520,7 @@ class MyGRU(RNN):
         print(tuner.results_summary(num_trials = max_trials))
         best = tuner.get_best_models(num_models=1)[0]
         x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
-        best.fit(x_train, y_train, batch_size=1544, validation_data=(x_test, y_test), epochs=1000)
+        #best.fit(x_train, y_train, batch_size=32, validation_data=(x_test, y_test), epochs=2000)
         self.name = f'GRU'
         self.model = best
         
@@ -541,7 +530,7 @@ class MyLSTM(RNN):
     '''
     Long Short Term Memory variant of RNN. Inherits all attributes and methods from parent class.
     '''
-    def fit(self, X, y, epochs, max_trials, units=[10, 100], act=['tanh'], layers=[1, 2], lr=[0.1, 0.01, 0.001]):
+    def fit(self, X, y, epochs, max_trials, units=[10, 120], act=['tanh'], layers=[1, 2], lr=[0.1, 0.01, 0.001]):
         '''
         Fitting method performing hyperparameter optimization. Bayesian Optimization is used for finding correct
         direction in search space, while 5-fold cross-validation is used for measuring predictive performance of
@@ -549,7 +538,7 @@ class MyLSTM(RNN):
         Inputs: Preprocessed input and target data as numpy arrays, maximum epochs for training as int, model compositions to be tested as int,
                 hyperparameter search space with fitting default values.
         '''
-        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='LSTM', input_shape=(X.shape[1], X.shape[2]), units=[10,100],
+        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='LSTM', input_shape=(X.shape[1], X.shape[2]), units=[10,120],
                             act=act, layers=layers, lr=lr),
                             oracle=kt.oracles.BayesianOptimization(objective='val_loss', max_trials=max_trials),
                             directory=os.getcwd(),
