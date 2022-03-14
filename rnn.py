@@ -63,7 +63,7 @@ class RNN:
         raw_data = raw_data[self.parameters].copy()
         df_train = raw_data[int(len(raw_data)*0.2):].copy()
         df_val = raw_data[:int(len(raw_data)*0.2)].copy()
-        
+                
         # Delete the quantity from parameter list to preserve the original inputs
         self.parameters = [x for x in self.parameters if x not in self.quant]
         
@@ -89,9 +89,7 @@ class RNN:
                     sequences_train.append([np.array(prev_days_train), pd.DataFrame(df_train).values[count+1][-l_quant:]])
                 except IndexError:
                     break
-                    
-        print(len(sequences_train))
-            
+                                
         for count, row in enumerate(pd.DataFrame(df_val).values):
             prev_days_val.append([val for val in row[:-l_quant]]) # store everything but the target values
 
@@ -167,7 +165,11 @@ class RNN:
             print((low[:,0]))
         plt.legend()
         plt.grid()
-        plt.title(f'Predictions for {self.quant[0]} with {self.name}.')
+        plt.xticks([])
+        plt.xlabel("2022-01-09 to 2022-01-14")
+        plt.ylabel("Output temperatures, C")
+        plt.title("Temperature predictions")
+        #plt.title(f'Predictions for {self.quant[0]} with {self.name}.')
         
         plt.show()
         

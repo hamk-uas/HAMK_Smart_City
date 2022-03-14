@@ -1,0 +1,3 @@
+1) Plot offset prediction and nooffset prediction together (that would be training period only).
+2) Plot vertical lines for the no offset and the offsets
+3) From the data, take mean energy consumption for a particular period with offset and with no offset. Subsract 
