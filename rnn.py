@@ -38,13 +38,13 @@ class RNN:
         self.scaler = None          # For storage of feature scaler
         self.name = None            # Defined after training
         
-    def preprocess(self, raw_data):
+    def preprocess(self, raw_data, split=0.2):
         '''
         Function for preprocessing downsampled data for sequence modeling.
         Inputs: Downsampled data frame with desired parameters defined in class attribute list in headers
         Output: Training input data, training target data, testing input data, testing target data, sklearn scaler object for inverse transformations
         '''
-        raw_data.iloc[:,0] = pd.to_datetime(raw_data.iloc[:,0], format='%Y-%m-%d %H:%M:%S') #Add "%H:%M:%S%z" for UTC
+        raw_data.iloc[:,0] = pd.to_datetime(raw_data.iloc[:,0], format='%Y-%m-%d %H:%M:%S%z')
         vec = raw_data.iloc[:,0].values
         datetimes = np.array([[vec, vec], [vec, vec]], dtype = 'M8[ms]').astype('O')[0,1]
         raw_data['weekday'] = [t.timetuple().tm_wday for t in datetimes]
@@ -61,14 +61,14 @@ class RNN:
         
         # Split the data to training and testing sets
         raw_data = raw_data[self.parameters].copy()
-        df_train = raw_data[int(len(raw_data)*0.2):].copy()
-        df_val = raw_data[:int(len(raw_data)*0.2)].copy()
-                
+        df_train = raw_data[int(len(raw_data)*split):].copy()
+        df_val = raw_data[:int(len(raw_data)*split)].copy()
+        
         # Delete the quantity from parameter list to preserve the original inputs
         self.parameters = [x for x in self.parameters if x not in self.quant]
         
         # Scale all data features to range [0,1]
-        self.scaler = MinMaxScaler((0, 1))
+        self.scaler = MinMaxScaler()
         df_train = self.scaler.fit_transform(df_train)
         df_val = self.scaler.transform(df_val)
         
@@ -89,7 +89,7 @@ class RNN:
                     sequences_train.append([np.array(prev_days_train), pd.DataFrame(df_train).values[count+1][-l_quant:]])
                 except IndexError:
                     break
-                                
+            
         for count, row in enumerate(pd.DataFrame(df_val).values):
             prev_days_val.append([val for val in row[:-l_quant]]) # store everything but the target values
 
@@ -103,7 +103,7 @@ class RNN:
                 
         # Iterating through the sequences in order to differentiate X and y
         X_train = []
-        y_train = [] 
+        y_train = []
         X_val = []
         y_val = []
 
@@ -160,16 +160,13 @@ class RNN:
         plt.plot(preds[:rounds], color='navy', label='Predicted')
         plt.plot(y_val[:rounds], color='darkorange', label='Measured', marker='*')
         if len(low) != 0:     # Check whether the list is empty.
-            plt.fill_between(range(rounds), (preds[:rounds,0])+(low[:,0]), (preds[:rounds,0])+(up[:,0]), color='gray', alpha=0.25, label=f'{round(conf*100)}% prediction interval')
-            print((preds[:rounds,0]))
-            print((low[:,0]))
+            #plt.fill_between(range(rounds), (preds[:rounds,0])+(low[:,0]), (preds[:rounds,0])+(up[:,0]), color='gray', alpha=0.25, label=f'{round(conf*100)}% prediction interval')
+            plt.fill_between(range(rounds), low, up, color='gray', alpha=0.25)
         plt.legend()
-        plt.grid()
+        plt.grid(axis = "both")
         plt.xticks([])
-        plt.xlabel("2022-01-09 to 2022-01-14")
-        plt.ylabel("Output temperatures, C")
-        plt.title("Temperature predictions")
-        #plt.title(f'Predictions for {self.quant[0]} with {self.name}.')
+        #plt.title("Temperature predictions")
+        plt.title(f'Predictions for {self.quant[0]} with {self.name}.')
         
         plt.show()
         
@@ -235,6 +232,26 @@ class RNN:
             json.dump(other_vars, f)
         print('Other variables saved.')
         
+    def model_load(self, name):
+        self.model = load_model(name)
+        print(self.model)
+        print('Model loaded.')
+        
+    def scaler_load(self, name):
+        self.scaler = load(name)
+        print('Scaler loaded.')
+        
+    def vars_load(self, name):
+        with open(name, 'r') as f:
+            var_dict = json.load(f)
+        self.name = var_dict["name"]
+        self.quant = var_dict["quant"]
+        self.seq = var_dict["seq"]
+        self.fut = var_dict["fut"]
+        self.parameters = var_dict["parameters"]
+        self.date = var_dict["date"]
+        print('Other variables loaded.')
+        
     def load(self, path):
         '''
         Loads RNN model information saved with .save method from location specified in function call.
@@ -244,6 +261,7 @@ class RNN:
         
         # Load the model to class attribute
         self.model = load_model(rf'{path}/model.h5')
+        print(self.model)
         print('Model loaded.')
         
         # Load the scaler
@@ -337,8 +355,7 @@ class RNN:
             preds_val = model.predict(X_train[val_idx]) # Validation predictions
             
             val_res.append(y_train[val_idx] - preds_val)    # Calculate validation residuals
-            boot_preds[b] = model.predict(np.reshape(x0, (1, x0.shape[0], x0.shape[1])))# Predict with bootstrapped model
-            print(self.scaler.inverse_transform([list(range(15)) + [boot_preds[b]]]))
+            boot_preds[b] = model.predict(np.reshape(x0, (1, x0.shape[0], x0.shape[1])))   # Predict with bootstrapped model
             
         boot_preds -= np.mean(boot_preds)   # Center bootstrap predictions
         val_res = np.concatenate(val_res, axis=None)    # Flattening predictions to a single array
