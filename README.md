@@ -16,7 +16,7 @@ The branch 'main' includes scripts which include everything from data preprocess
 * __Offsets.ipynb__: A notebook for the research of the impact of the radiator network temperature offsets onto the energy consumption.
 
 ### Authors
-2021 Iivo Metsä-Eerola and Genrikh Ekkerman
+2021 Iivo Metsä-Eerola and Genrikh Ekkerman <br>
 2022 Roman Tsypin
 
 ### Licence
