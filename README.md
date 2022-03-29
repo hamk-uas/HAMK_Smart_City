@@ -14,6 +14,7 @@ The branch 'main' includes scripts which include everything from data preprocess
 * __main.ipynb__: Main notebook for running the analysis. Methods of the class rnn are demonstrated for the user. The anomaly detection using the residual standard deviation approach is available in this script as well.  The script also has a demo for the comparison of the S-building and Tampere 2744 building.
 * __Developing_Scenarios.ipynb__: An unfinished notebook for developing scenarios to research the impact of the unmeasured district heat temperature network values onto the energy consumption and energy values.
 * __Offsets.ipynb__: A notebook for the research of the impact of the radiator network temperature offsets onto the energy consumption.
+* __environment.yml__ and __requirements.txt__: Files for quick installation. The first one can be ran as the from-environment installation using conda, the latter one can be used as the installation using pip.
 
 ### Authors
 2021 Iivo Metsä-Eerola and Genrikh Ekkerman <br>
