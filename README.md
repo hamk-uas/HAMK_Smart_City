@@ -7,10 +7,12 @@ For HVAC optimization, see the main branch. Files related to optimization have b
 Package dependencies are listed in requirements.txt, and suitable .gitignore file is included in the repository.
 
 ### Installation
-Install required python libraries by using requirements.txt
+Install required python libraries by using requirements.txt:
 ```
 pip install -r requirements.txt
 ```
+
+This works on Windows at least. The version numbers for packages scipy==1.7.3 and keras_tuner==1.0.2 are important, others probably not so you can remove the other version numbers if you can't find the packages with those version numbers.
 
 To use GPU in an Anaconda environment:
 
