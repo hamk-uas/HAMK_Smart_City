@@ -220,12 +220,12 @@ class RNN:
         
         print('Other variables loaded.')
         
-    def retrain(self, x, y, x_val, y_val, epochs=10000):
+    def retrain(self, x, y, x_val, y_val, epochs=1000):
         self.model = tf.keras.models.clone_model(self.model) # Init weights
         
         opt = Adam(learning_rate=0.01)
         self.model.compile(loss='mse', optimizer=opt, metrics=['mae'])
-        stopper = EarlyStopping(monitor='val_loss', patience=100, restore_best_weights=True)
+        stopper = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
         self.model.fit(x, y, batch_size=np.shape(x)[0], validation_data=(x_val, y_val), epochs=epochs, callbacks=[stopper])
         
     def prediction_interval(self, x_train, y_train, x0, path=rf'{os.getcwd()}'):
