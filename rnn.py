@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import tensorflow as tf
 from tensorflow import Variable
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, GRU, LSTM, SimpleRNN, BatchNormalization
@@ -22,21 +23,24 @@ class RNN:
     '''
     Parent class for RNN models.
     '''
-    def __init__(self, quant=None, seq=4, fut=0, parameters=None):
+    
+    def __init__(self, y_parameters=None, seq=4, fut=0, x_parameters=None):
         '''
         All parameters for class objects are defined here, child classes don't have __init__ methods
         Inputs: target quantities as list, sequence length as int, future period as int, input parameters as a list.
         '''
-        self.quant = quant
+        self.x_parameters = x_parameters
+        self.y_parameters = y_parameters
+        self.used_parameters = x_parameters + y_parameters
         self.seq = seq
         self.fut = fut
-        self.parameters = parameters
         self.date = date.today()    # For bookkeeping purposes
         self.model = None           # For storage of a model
         self.scaler = None          # For storage of feature scaler
         self.name = None            # Defined after training
         
     def preprocess(self, raw_data):
+        
         '''
         Function for preprocessing downsampled data for sequence modeling.
         Inputs: Downsampled data frame with desired parameters defined in class attribute list in headers
@@ -49,99 +53,61 @@ class RNN:
         raw_data['hours'] = [t.hour for t in datetimes]
         
         # Encode time parameters to cyclical features
-        raw_data['hours_sin'] = np.sin(2 * np.pi * raw_data['hours']/24.0)
-        raw_data['hours_cos'] = np.cos(2 * np.pi * raw_data['hours']/24.0)
+        raw_data['hours_sin'] = np.sin(2 * np.pi * raw_data['hours']/24)
+        raw_data['hours_cos'] = np.cos(2 * np.pi * raw_data['hours']/24)
         raw_data['weekday_sin'] = np.sin(2 * np.pi * raw_data['weekday']/7)
         raw_data['weekday_cos'] = np.cos(2 * np.pi * raw_data['weekday']/7)
         
-        # Extend parameter list by quantity for picking data
-        self.parameters.extend(self.quant)
-        
-        # Split the data to training and testing sets
-        raw_data = raw_data[self.parameters].copy()
-        df_train = raw_data[int(len(raw_data)*0.2):].copy()
+        # Split the data to training and testing sets        
         df_val = raw_data[:int(len(raw_data)*0.2)].copy()
-        
-        # Delete the quantity from parameter list to preserve the original inputs
-        self.parameters = [x for x in self.parameters if x not in self.quant]
-        
-        # Scale all data features to range [0,1]
+        df_train = raw_data[int(len(raw_data)*0.2):].copy()
+
+        # Scale all used data features to range [0,1]
         self.scaler = MinMaxScaler()
-        df_train = self.scaler.fit_transform(df_train)
-        df_val = self.scaler.transform(df_val)
-        
-        # Next generate a list which will hold all of the sequences for training data
-        sequences_train = []
-        sequences_val = []
-        prev_days_train = deque(maxlen=self.seq)  # Placeholder for the sequences
-        prev_days_val = deque(maxlen=self.seq)
-        l_quant = len(self.quant)
-        
-        for count, row in enumerate(pd.DataFrame(df_train).values):
-            prev_days_train.append([val for val in row[:-l_quant]]) # store everything but the target values
-
-            if (len(prev_days_train) == self.seq):  # This checks that our sequences are of the correct length and target value is at full hour
-                if (any(pd.isna(pd.DataFrame(df_train).values[count-1][-l_quant:]))): # Test for 30 min data interval because of energy data gaps
-                    continue
-                try:
-                    sequences_train.append([np.array(prev_days_train), pd.DataFrame(df_train).values[count+1][-l_quant:]])
-                except IndexError:
-                    break
+        df_train_scaled = pd.DataFrame(self.scaler.fit_transform(df_train[self.used_parameters]), columns = self.used_parameters)
+        df_val_scaled = pd.DataFrame(self.scaler.transform(df_val[self.used_parameters]), columns = self.used_parameters)
+       
+        # Convert to sequences
+        if self.fut == 0:
+            x_train = df_train_scaled[self.x_parameters]              # Full timeseries
+            y_train = df_train_scaled[self.y_parameters][self.seq-1:] # Skip seq-1 time points from the beginning
+            x_val = df_val_scaled[self.x_parameters]                  # Full timeseries
+            y_val = df_val_scaled[self.y_parameters][self.seq-1:]     # Skip seq-1 time points from the beginning
+        else:
+            x_train = df_train_scaled[self.x_parameters][:-self.fut]           # Skip fut time points from the end
+            y_train = df_train_scaled[self.y_parameters][self.seq-1+self.fut:] # Skip seq - 1 + fut time points from the beginning
+            x_val = df_val_scaled[self.x_parameters][:-self.fut]               # Skip fut time points from the end
+            y_val = df_val_scaled[self.y_parameters][self.seq-1+self.fut:]     # Skip seq - 1 + fut time points from the beginning
             
-        for count, row in enumerate(pd.DataFrame(df_val).values):
-            prev_days_val.append([val for val in row[:-l_quant]]) # store everything but the target values
-
-            if (len(prev_days_val) == self.seq):  # This checks that our sequences are of the correct length and target value is at full hour
-                if (any(pd.isna(pd.DataFrame(df_val).values[count-1][-l_quant:]))): # Test for 30 min data interval because of energy data gaps
-                    continue
-                try:
-                    sequences_val.append([np.array(prev_days_val), pd.DataFrame(df_val).values[count+1][-l_quant:]])
-                except IndexError:
-                    break
-                
-        # Iterating through the sequences in order to differentiate X and y
-        X_train = []
-        y_train = []
-        X_val = []
-        y_val = []
-
-        for seq, target in sequences_train:
-            X_train.append(seq)
-            y_train.append(target)
-            
-        for seq, target in sequences_val:
-            X_val.append(seq)
-            y_val.append(target)
-            
-        X_train = np.array(X_train)
-        y_train = np.array(y_train)
-        X_val = np.array(X_val)
-        y_val = np.array(y_val)
+        x_train = np.squeeze(np.lib.stride_tricks.sliding_window_view(x_train, (self.seq, len(self.x_parameters))), axis = 1)
+        y_train = y_train.to_numpy()
+        x_val = np.squeeze(np.lib.stride_tricks.sliding_window_view(x_val, (self.seq, len(self.x_parameters))), axis = 1)
+        y_val = y_val.to_numpy()
         
         # Output the shapes of training and testing data.
-        print(f'Shape of training data: {X_train.shape}')
-        print(f'Shape of testing data: {X_val.shape}')
+        print(f'Shape of training data: x: {x_train.shape} y: {y_train.shape}')
+        print(f'Shape of testing data: x: {x_val.shape} y: {y_val.shape}')
+                
+        return df_train, x_train, y_train, df_val, x_val, y_val
         
-        return X_train, y_train, X_val, y_val
-        
-    def inv_target(self, X, preds, y_val):
+    def inv_target(self, x, preds, y_val):
         '''
         Method for inverting the scaling target variable
         Inputs: 3-dimensional data matrix used to train (or validate) the model, predictions obtained using the model,
                 validation target vector and pre-fitted sklearn scaler. 
-                Note: the X tensor is more of a placeholder in this function used only for getting the dimensions correct.
+                Note: the x tensor is more of a placeholder in this function used only for getting the dimensions correct.
         Output: Inversely transformed predictions and validation vectors
         '''
         
-        preds = np.concatenate((X[:len(preds),-1], np.array(preds).reshape(len(preds), 1)), axis=1) # Reshape is necessary as there are issues with dimensions
-        y_val = np.concatenate((X[:len(preds),-1], np.array(y_val[:len(preds)]).reshape(len(preds), 1)), axis=1)
+        preds = np.concatenate((x[:len(preds),-1], np.array(preds).reshape(len(preds), 1)), axis=1) # Reshape is necessary as there are issues with dimensions
+        y_val = np.concatenate((x[:len(preds),-1], np.array(y_val[:len(preds)]).reshape(len(preds), 1)), axis=1)
         
         preds = self.scaler.inverse_transform(preds)[:,-1:]
         y_val = self.scaler.inverse_transform(y_val)[:,-1:]
         
         return preds, y_val
         
-    def plot_preds(self, preds, y_val, low=[], up=[], conf=0.9):
+    def plot_preds(self, preds, y_val, color, label, low=[], up=[], conf=0.9):
         '''
         Producing plots of predictions with the measured values as time series.
         Inputs: predicted and measured values as numpy arrays.
@@ -153,17 +119,13 @@ class RNN:
         else:
             rounds = len(preds)
         
-        plt.figure()
-        
-        plt.plot(preds[:rounds], color='navy', label='Predicted')
-        plt.plot(y_val[:rounds], color='darkorange', label='Measured', marker='*')
+        plt.plot(preds[:rounds], color=color, label=label) #darkorange
+        plt.plot(y_val[:rounds], color='red', label='Measured', marker='.', linestyle="")
         if len(low) != 0:     # Check whether the list is empty.
             plt.fill_between(range(rounds), (preds[:rounds,0])+(low[:,0]), (preds[:rounds,0])+(up[:,0]), color='gray', alpha=0.25, label=f'{round(conf*100)}% prediction interval')
         plt.legend()
         plt.grid()
-        plt.title(f'Predictions for {self.quant[0]} with {self.name}.')
-        
-        plt.show()
+        plt.title(f'Predictions for {self.y_parameters[0]} with {self.name}.')
         
     def load_intervals(self, int_path, conf=0.9):
         '''
@@ -195,9 +157,7 @@ class RNN:
         #plt.legend()
         #
         #plt.show()
-        
-        
-        
+                
     def save(self, path=rf'{os.getcwd()}'):
         '''
         Method for saving the model, scaler, and other attributes to compatible forms.
@@ -206,7 +166,7 @@ class RNN:
         '''
     
         # Define the folder which the results are saved to
-        new_fold_path = rf'{path}/{self.name}_{self.quant[0]}_{str(self.date)}'
+        new_fold_path = rf'{path}/{self.name}_{self.y_parameters[0]}_{str(self.date)}'
         if not os.path.exists(new_fold_path):    # Test whether the directory already exists
             os.makedirs(new_fold_path)
             print(f'Folder created on path: {new_fold_path}.')
@@ -222,7 +182,7 @@ class RNN:
         print('Scaler saved.')
         
         # Save all other variables to json format to folder
-        other_vars = {'name': self.name, 'quant': self.quant, 'seq': self.seq, 'fut': self.fut, 'parameters': self.parameters, 'date': str(self.date)}
+        other_vars = {'name': self.name, 'y_parameters': self.y_parameters, 'seq': self.seq, 'fut': self.fut, 'x_parameters': self.x_parameters, 'date': str(self.date)}
         with open(rf'{new_fold_path}/vars.json', 'w') as f:
             json.dump(other_vars, f)
         print('Other variables saved.')
@@ -248,15 +208,24 @@ class RNN:
             
         # Place the variables to correct positions
         self.name = var_dict["name"]
-        self.quant = var_dict["quant"]
+        self.y_parameters = var_dict["y_parameters"]
         self.seq = var_dict["seq"]
         self.fut = var_dict["fut"]
-        self.parameters = var_dict["parameters"]
+        self.x_parameters = var_dict["x_parameters"]
+        self.used_parameters = self.x_parameters + self.y_parameters
         self.date = var_dict["date"]
         
         print('Other variables loaded.')
         
-    def prediction_interval(self, X_train, y_train, x0, path=rf'{os.getcwd()}'):
+    def train(self, x, y, x_val, y_val, epochs=10000):
+        self.model = tf.keras.models.clone_model(self.model) # Init weights
+        
+        opt = Adam(learning_rate=0.01)
+        self.model.compile(loss='mse', optimizer=opt, metrics=['mae'])
+        stopper = EarlyStopping(monitor='val_loss', patience=100, restore_best_weights=True)
+        self.model.fit(x, y, batch_size=np.shape(x)[0], validation_data=(x_val, y_val), epochs=epochs, callbacks=[stopper])
+        
+    def prediction_interval(self, x_train, y_train, x0, path=rf'{os.getcwd()}'):
         '''
         Compute bootstrap prediction interval around the models prediction on single data point x0.
         Inputs: pre-trained model, training input data, training output data, new input data row, number of rows to save,
@@ -265,7 +234,7 @@ class RNN:
         '''
         
         # Define output path for saving the percentile results.
-        new_fold_path = rf'{path}/{self.name}_{self.quant[0]}_{str(self.date)}'
+        new_fold_path = rf'{path}/{self.name}_{self.y_parameters[0]}_{str(self.date)}'
         if not os.path.exists(new_fold_path):    # Test whether the directory already exists
             os.makedirs(new_fold_path)
             print(f'Folder created on path: {new_fold_path}.')
@@ -276,13 +245,13 @@ class RNN:
         model = self.model
         
         # Number of training samples
-        n = X_train.shape[0]
+        n = x_train.shape[0]
         
         # Calculate the next prediction to be output in the end
         pred_x0 = model.predict(np.reshape(x0, (1, x0.shape[0], x0.shape[1])))
         
         # Calculate training residuals
-        preds = model.predict(X_train)
+        preds = model.predict(x_train)
         train_res = y_train - preds
         
         # Number of bootstrap samples
@@ -323,10 +292,10 @@ class RNN:
             
             # Train model with training data, validate with validation data. Early Stopping stops training after validation performance
             # starts to deteriorate.
-            model.fit(X_train[train_idx], y_train[train_idx], epochs=100, verbose=0, validation_data=(X_train[val_idx], y_train[val_idx]),
+            model.fit(x_train[train_idx], y_train[train_idx], epochs=100, verbose=0, validation_data=(x_train[val_idx], y_train[val_idx]),
                         callbacks=EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True))   
                 
-            preds_val = model.predict(X_train[val_idx]) # Validation predictions
+            preds_val = model.predict(x_train[val_idx]) # Validation predictions
             
             val_res.append(y_train[val_idx] - preds_val)    # Calculate validation residuals
             boot_preds[b] = model.predict(np.reshape(x0, (1, x0.shape[0], x0.shape[1])))   # Predict with bootstrapped model
@@ -372,6 +341,7 @@ class CVTuner(kt.engine.tuner.Tuner):
         cv = KFold(5)
         val_losses = []
         for train_indices, test_indices in cv.split(x):
+            print("Fold")
             x_train, x_test = x[train_indices], x[test_indices]
             y_train, y_test = y[train_indices], y[test_indices]
             model = self.hypermodel.build(trial.hyperparameters)
@@ -404,7 +374,10 @@ class RNN_HyperModel(kt.HyperModel):
         model = Sequential()
         
         # Define hyperparameter search space
-        hp_units = hp.Int('units', min_value=self.units[0], max_value=self.units[1], step=10)
+        try:
+            hp_units = hp.Int('units', min_value=self.units[0], max_value=self.units[1], step=10)
+        except IndexError:
+            hp_units = hp.Fixed('units', value=self.units[0])
         try:
             hp_layers = hp.Int('layers', min_value=self.layers[0], max_value=self.layers[1])
         except IndexError:
@@ -468,7 +441,7 @@ class VanillaRNN(RNN):
     '''
     Conventional Recurrent Neural Network model.
     '''
-    def fit(self, X, y, epochs, max_trials, units=[10, 100], act=['tanh', 'relu'], layers=[1, 2], lr=[0.1, 0.01, 0.001]):
+    def tune_hyperparameters(self, x, y, epochs, max_trials, units=[10, 100], act=['tanh', 'relu'], layers=[1, 2], lr=[0.1, 0.01, 0.001]):
         '''
         Fitting method performing hyperparameter optimization. Bayesian Optimization is used for finding correct
         direction in search space, while 5-fold cross-validation is used for measuring predictive performance of
@@ -476,13 +449,13 @@ class VanillaRNN(RNN):
         Inputs: Preprocessed input and target data as numpy arrays, maximum epochs for training as int, model compositions to be tested as int,
                 hyperparameter search space with fitting default values.
         '''
-        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='SimpleRNN', input_shape=(X.shape[1], X.shape[2]), units=[10,100],
+        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='SimpleRNN', input_shape=(x.shape[1], x.shape[2]), units=[10,100],
                             act=act, layers=layers, lr=lr),
                             oracle=kt.oracles.BayesianOptimization(objective='val_loss', max_trials=max_trials),
                             directory=os.getcwd(),
-                            project_name=f'VanillaRNN_{self.quant[0]}_{str(date.today())}', overwrite=True)
+                            project_name=f'VanillaRNN_{self.y_parameters[0]}_{str(date.today())}', overwrite=True)
         
-        tuner.search(X, y, epochs=epochs)
+        tuner.search(x, y, epochs=epochs)
         
         print(tuner.results_summary())
         
@@ -494,7 +467,7 @@ class MyGRU(RNN):
     '''
     Gated Recurrent Unit variant of RNN. Inherits all attributes and methods from parent class.
     '''
-    def fit(self, X, y, epochs, max_trials, units=[10, 100], act=['tanh'], layers=[1, 2], lr=[0.1, 0.01, 0.001]):
+    def tune_hyperparameters(self, x, y, epochs, max_trials, units=[110], act=['tanh'], layers=[1], lr=[0.01]):
         '''
         Fitting method performing hyperparameter optimization. Bayesian Optimization is used for finding correct
         direction in search space, while 5-fold cross-validation is used for measuring predictive performance of
@@ -502,13 +475,13 @@ class MyGRU(RNN):
         Inputs: Preprocessed input and target data as numpy arrays, maximum epochs for training as int, model compositions to be tested as int,
                 hyperparameter search space with fitting default values.
         '''
-        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='GRU', input_shape=(X.shape[1], X.shape[2]), units=[10,100],
+        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='GRU', input_shape=(x.shape[1], x.shape[2]), units=units,
                             act=act, layers=layers, lr=lr),
                             oracle=kt.oracles.BayesianOptimization(objective='val_loss', max_trials=max_trials),
                             directory=os.getcwd(),
-                            project_name=f'GRU_{self.quant[0]}_{str(date.today())}', overwrite=True)
+                            project_name=f'GRU_{self.y_parameters[0]}_{str(date.today())}', overwrite=True)
         
-        tuner.search(X, y, epochs=epochs)
+        tuner.search(x, y, epochs=epochs)
         
         print(tuner.results_summary())
         
@@ -520,7 +493,7 @@ class MyLSTM(RNN):
     '''
     Long Short Term Memory variant of RNN. Inherits all attributes and methods from parent class.
     '''
-    def fit(self, X, y, epochs, max_trials, units=[10, 100], act=['tanh'], layers=[1, 2], lr=[0.1, 0.01, 0.001]):
+    def tune_hyperparameters(self, x, y, epochs, max_trials, units=[10, 100], act=['tanh'], layers=[1, 2], lr=[0.1, 0.01, 0.001]):
         '''
         Fitting method performing hyperparameter optimization. Bayesian Optimization is used for finding correct
         direction in search space, while 5-fold cross-validation is used for measuring predictive performance of
@@ -528,13 +501,13 @@ class MyLSTM(RNN):
         Inputs: Preprocessed input and target data as numpy arrays, maximum epochs for training as int, model compositions to be tested as int,
                 hyperparameter search space with fitting default values.
         '''
-        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='LSTM', input_shape=(X.shape[1], X.shape[2]), units=[10,100],
+        tuner = CVTuner(hypermodel=RNN_HyperModel(mtype='LSTM', input_shape=(x.shape[1], x.shape[2]), units=[10,100],
                             act=act, layers=layers, lr=lr),
                             oracle=kt.oracles.BayesianOptimization(objective='val_loss', max_trials=max_trials),
                             directory=os.getcwd(),
-                            project_name=f'LSTM_{self.quant[0]}_{str(date.today())}', overwrite=True)
+                            project_name=f'LSTM_{self.y_parameters[0]}_{str(date.today())}', overwrite=True)
         
-        tuner.search(X, y, epochs=epochs)
+        tuner.search(x, y, epochs=epochs)
         
         print(tuner.results_summary())
         
