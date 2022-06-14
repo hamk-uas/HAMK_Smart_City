@@ -90,6 +90,9 @@ class RNN:
                 
         return df_train, x_train, y_train, df_val, x_val, y_val
         
+    def get_pred_dates(self, df):
+        return df.to_numpy()[self.seq-1+self.fut:, 0]
+        
     def inv_target(self, x, preds, y_val):
         '''
         Method for inverting the scaling target variable
@@ -107,7 +110,7 @@ class RNN:
         
         return preds, y_val
         
-    def plot_preds(self, preds, y_val, color, label, low=[], up=[], conf=0.9):
+    def plot_preds(self, datetimes, preds, y_val, color, label, low=[], up=[], conf=0.9):
         '''
         Producing plots of predictions with the measured values as time series.
         Inputs: predicted and measured values as numpy arrays.
@@ -119,8 +122,8 @@ class RNN:
         else:
             rounds = len(preds)
         
-        plt.plot(preds[:rounds], color=color, label=label) #darkorange
-        plt.plot(y_val[:rounds], color='red', label='Measured', marker='.', linestyle="")
+        plt.plot(datetimes[:rounds], preds[:rounds], color=color, label=label) #darkorange
+        plt.plot(datetimes[:rounds], y_val[:rounds], color='red', label='Measured', marker='.', linestyle="")
         if len(low) != 0:     # Check whether the list is empty.
             plt.fill_between(range(rounds), (preds[:rounds,0])+(low[:,0]), (preds[:rounds,0])+(up[:,0]), color='gray', alpha=0.25, label=f'{round(conf*100)}% prediction interval')
         plt.legend()
