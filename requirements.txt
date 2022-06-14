@@ -1,9 +1,9 @@
-matplotlib
-numpy
-tensorflow
+matplotlib==3.5.2
+numpy==1.22.4
+tensorflow==2.9.1
 scipy==1.7.3
-pandas
+pandas==1.4.2
 keras_tuner==1.0.2
-joblib
-preprocess
-scikit_learn
+joblib==1.1.0
+preprocess==2.0.0
+scikit_learn==1.1.1
