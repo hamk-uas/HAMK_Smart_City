@@ -217,7 +217,7 @@ class RNN:
         
         print('Other variables loaded.')
         
-    def train(self, x, y, x_val, y_val, epochs=10000):
+    def retrain(self, x, y, x_val, y_val, epochs=10000):
         self.model = tf.keras.models.clone_model(self.model) # Init weights
         
         opt = Adam(learning_rate=0.01)

@@ -6,8 +6,8 @@ import tensorflow as tf
 import numpy as np
 
 # Uncomment to disable GPU:
-#import os
-#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
@@ -38,7 +38,7 @@ hvac_model = MyGRU(y_parameters=['Energy_consumption'], seq=12, fut=0, x_paramet
 #x_train, y_train, x_test, y_test = hvac_model.preprocess(raw_data, True)
 
 df_train, x_train, y_train, df_val, x_val, y_val = hvac_model.preprocess(raw_data)
-
+       
 # Hyperparameter tuning, uncomment these three lines to run it
 #print("Cross-validation hyperparameter tuning")
 #hvac_model.tune_hyperparameters(x=x_train, y=y_train, epochs=1000, max_trials=15)
