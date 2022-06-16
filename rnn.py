@@ -39,11 +39,12 @@ class RNN:
         self.scaler = None          # For storage of feature scaler
         self.name = None            # Defined after training
         
-    def preprocess(self, raw_data):
+    def preprocess(self, raw_data, fit_scaler = True):
         
         '''
         Function for preprocessing downsampled data for sequence modeling.
         Inputs: Downsampled data frame with desired parameters defined in class attribute list in headers
+        fit_scaler: True to fit the scaler, False to use existing scaler (self.scaler)
         Output: Training input data, training target data, testing input data, testing target data, sklearn scaler object for inverse transformations
         '''
         raw_data.iloc[:,0] = pd.to_datetime(raw_data.iloc[:,0], format='%Y-%m-%d %H:%M:%S%z')
@@ -63,8 +64,11 @@ class RNN:
         df_train = raw_data[int(len(raw_data)*0.2):].copy()
 
         # Scale all used data features to range [0,1]
-        self.scaler = MinMaxScaler()
-        df_train_scaled = pd.DataFrame(self.scaler.fit_transform(df_train[self.used_parameters]), columns = self.used_parameters)
+        if fit_scaler:
+            self.scaler = MinMaxScaler()
+            df_train_scaled = pd.DataFrame(self.scaler.fit_transform(df_train[self.used_parameters]), columns = self.used_parameters)
+        else:
+            df_train_scaled = pd.DataFrame(self.scaler.transform(df_train[self.used_parameters]), columns = self.used_parameters)
         df_val_scaled = pd.DataFrame(self.scaler.transform(df_val[self.used_parameters]), columns = self.used_parameters)
        
         # Convert to sequences
@@ -186,6 +190,7 @@ class RNN:
         
         # Save all other variables to json format to folder
         other_vars = {'name': self.name, 'y_parameters': self.y_parameters, 'seq': self.seq, 'fut': self.fut, 'x_parameters': self.x_parameters, 'date': str(self.date)}
+
         with open(rf'{new_fold_path}/vars.json', 'w') as f:
             json.dump(other_vars, f)
         print('Other variables saved.')
@@ -296,7 +301,7 @@ class RNN:
             # Train model with training data, validate with validation data. Early Stopping stops training after validation performance
             # starts to deteriorate.
             model.fit(x_train[train_idx], y_train[train_idx], epochs=100, verbose=0, validation_data=(x_train[val_idx], y_train[val_idx]),
-                        callbacks=EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True))   
+                        callbacks=EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True))
                 
             preds_val = model.predict(x_train[val_idx]) # Validation predictions
             
