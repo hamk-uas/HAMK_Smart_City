@@ -15,7 +15,7 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 raw_data = pd.read_csv(r'data_example_offsets_new.csv')
 
 # Initialize the model with the required parameters.
-hvac_model = MyGRU(y_parameters=['Energy_consumption'], seq=12, fut=0, x_parameters=[
+hvac_model = MyGRU(y_parameters=['Energy_consumption'], seq=12, fut=1, x_parameters=[
     'Outside_humidity',
     'Solar_irradiance',
     'CO2_concentration',
@@ -48,7 +48,8 @@ if False:
 
 # Model training using full training data and best hyperparameters found earlier
 if False:
-    hvac_model.load(r'GRU_Energy_consumption_2022-06-15_hyperparameter_tuning_fut_0')
+    #hvac_model.load(r'GRU_Energy_consumption_2022-06-14_hyperparameter_tuning_fut_0')
+    hvac_model.load(r'GRU_Energy_consumption_2022-06-15_hyperparameter_tuning_fut_1')
     print("Train model")
     hvac_model.retrain(x_train, y_train, x_val, y_val)
     hvac_model.save()
@@ -58,7 +59,7 @@ if False:
 # Calculate statistics on scenario testing results over bootstrapped model training on input sequences resampled with replacement:
 
 if True:
-    hvac_model.load(r'GRU_Energy_consumption_2022-06-14_trained_fut_0')
+    hvac_model.load(r'GRU_Energy_consumption_2022-06-15_trained_fut_1')
 
     raw_data_offsets_removed = raw_data.copy();
     raw_data_offsets_removed['Radiator_network_2_temperature'] -= raw_data['Radiator_network_2_offset']
