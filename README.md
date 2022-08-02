@@ -6,6 +6,8 @@ The current branch 'main' includes scripts which include everything from data pr
 
 The branch ['scenario-testing'](https://github.com/hamk-uas/HAMK_Smart_City/tree/scenario-testing) includes data and scripts for scenario testing modeling.
 
+Both of those branches are needed to reproduce the results of the [article](https://doi.org/10.3390/en15145084).
+
 Package dependencies are listed in requirements.txt, and suitable .gitignore file is included in the repository.
 
 ### Installation
