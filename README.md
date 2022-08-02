@@ -54,7 +54,7 @@ By enabling one at a time the code blocks enabled or disabled by `if True:` or `
 
 #### Running the models and visualizing the results
 * Open __Scenario testing.ipynb__ in Jupyter Notebook.
-* Make sure you have the correct model folder name in `hvac_model.load(r'GRU_Energy_consumption_2022-06-15_trained_fut_1')`.
+* Make sure you have the correct model folder name on the line `hvac_model.load(r'GRU_Energy_consumption_2022-06-15_trained_fut_1')`.
 * Run the notebook.
 
 ### Authors
