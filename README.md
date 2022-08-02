@@ -25,3 +25,6 @@ pip install -r requirements.txt
 
 ### Licence
 Permissive Apache License 2.0
+
+### Article
+Metsä-Eerola, I.; Pulkkinen, J.; Niemitalo, O.; Koskela, O. On Hourly Forecasting Heating Energy Consumption of HVAC with Recurrent Neural Networks. Energies 2022, 15, 5084. https://doi.org/10.3390/en15145084
