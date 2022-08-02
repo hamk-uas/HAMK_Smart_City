@@ -2,7 +2,7 @@
 
 This is repository includes Python3 scripts for smart Building Automation system development during Smart City project. The Smart City project of Häme University of Applied Sciences focuses on promoting low-carbon developments through implementation of Artificial Intelligence. To learn more about the project, read [popular](https://blog.hamk.fi/hamk-smart/koneoppiminen-alykkaissa-rakennuksissa/) and [technical](https://blog.hamk.fi/hamk-smart/alykaupunki-hanke-edistaa-tekoalyn-tuotteistamista-rakennuksissa/) blog posts from HAMK Smart blog (in Finnish).
 
-The current branch 'scenario-testing' contains data, trained models and scripts for scenario testing modeling. It was created in order to reproduce the results of the article together with confidence intervals. Article citation: Metsä-Eerola, I.; Pulkkinen, J.; Niemitalo, O.; Koskela, O. On Hourly Forecasting Heating Energy Consumption of HVAC with Recurrent Neural Networks. Energies 2022, 15, 5084. https://doi.org/10.3390/en15145084
+The current branch 'scenario-testing' contains data, trained models and scripts for scenario testing modeling. It was created in order to reproduce the results of the [article](https://doi.org/10.3390/en15145084) together with confidence intervals.
 
 See also the ['main'](https://github.com/hamk-uas/HAMK_Smart_City/tree/main) branch.
 
@@ -34,3 +34,6 @@ conda install cudnn
 
 ### Licence
 Permissive Apache License 2.0
+
+### Article
+Metsä-Eerola, I.; Pulkkinen, J.; Niemitalo, O.; Koskela, O. On Hourly Forecasting Heating Energy Consumption of HVAC with Recurrent Neural Networks. Energies 2022, 15, 5084. https://doi.org/10.3390/en15145084
