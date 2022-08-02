@@ -2,7 +2,11 @@
 
 This is repository includes Python3 scripts for smart Building Automation system development during Smart City project. The Smart City project of Häme University of Applied Sciences focuses on promoting low-carbon developments through implementation of Artificial Intelligence. To learn more about the project, read [popular](https://blog.hamk.fi/hamk-smart/koneoppiminen-alykkaissa-rakennuksissa/) and [technical](https://blog.hamk.fi/hamk-smart/alykaupunki-hanke-edistaa-tekoalyn-tuotteistamista-rakennuksissa/) blog posts from HAMK Smart blog (in Finnish). The content of this repository is focused on forecasting district heating energy consumption and optimization of HVAC system controls.
 
-The branch 'main' includes scripts which include everything from data preprocessing to Particle Swarm Optimization of HVAC controls. Package dependencies are listed in requirements.txt, and suitable .gitignore file is included in the repository.
+The current branch 'main' includes scripts which include everything from data preprocessing to Particle Swarm Optimization of HVAC controls.
+
+The branch ['scenario-testing'](https://github.com/hamk-uas/HAMK_Smart_City/tree/scenario-testing) includes data and scripts for scenario testing modeling.
+
+Package dependencies are listed in requirements.txt, and suitable .gitignore file is included in the repository.
 
 ### Installation
 Install required python libraries by using requirements.txt
