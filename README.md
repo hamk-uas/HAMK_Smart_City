@@ -2,7 +2,9 @@
 
 This is repository includes Python3 scripts for smart Building Automation system development during Smart City project. The Smart City project of Häme University of Applied Sciences focuses on promoting low-carbon developments through implementation of Artificial Intelligence. To learn more about the project, read [popular](https://blog.hamk.fi/hamk-smart/koneoppiminen-alykkaissa-rakennuksissa/) and [technical](https://blog.hamk.fi/hamk-smart/alykaupunki-hanke-edistaa-tekoalyn-tuotteistamista-rakennuksissa/) blog posts from HAMK Smart blog (in Finnish).
 
-For HVAC optimization, see the main branch. Files related to optimization have been removed from this branch.
+The current branch 'scenario-testing' contains data, trained models and scripts for scenario testing modeling.
+
+See also the ['main'](https://github.com/hamk-uas/HAMK_Smart_City/tree/main) branch.
 
 Package dependencies are listed in requirements.txt, and suitable .gitignore file is included in the repository.
 
@@ -27,7 +29,7 @@ conda install cudnn
 * __Scenario testing.ipynb__: Jupyter Notebook for scenario testing predictions.
 
 ### Authors
-2021 Iivo Metsä-Eerola and Genrikh Ekkerman
+2021 Iivo Metsä-Eerola and Genrikh Ekkerman<br>
 2022 Olli Niemitalo
 
 ### Licence
