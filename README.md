@@ -47,7 +47,7 @@ The above models were then retrained, resulting in these models:
 The following steps should be done in order.
 
 #### Model training and bootstrap statistics for scenario testing modeling results
-By enabling code blocks disabled by `if False:` in __main.py__ and by running the script each time by `python main.py`, do the following:
+By enabling one at a time the code blocks enabled or disabled by `if True:` or `if False:` in __main.py__ and by running the script each time by `python main.py`, do the following:
 * Tune hyperparameters. This will save the model with the best hyperparameters. The best hyperparameters are currently fixed (in __rnn.py__) to those found when the hyperparameter optimization was done for the first time for the thesis and the article.
 * Find the result folder and append "_hyperparameter_tuning_fut_0" or "_hyperparameter_tuning_fut_1" to the folder name, depending on the value of the `fut` variable in your `MyGRU` constructor call.
 * Calculate statistics on scenario testing results over bootstrapped model training on input sequences resampled with replacement. These will be stored in __predictedEnergyConsumptionScenarioDisabled.csv__ and __predictedEnergyConsumptionScenarioEnabled.csv__
