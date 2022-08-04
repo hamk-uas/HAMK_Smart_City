@@ -140,8 +140,4 @@ cython_debug/
 # Keras models
 *.h5
 
-.idea
-main.py
-data_example.csv
-optimization.py
-rnn.py
+ignored
