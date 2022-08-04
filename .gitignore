@@ -141,11 +141,7 @@ cython_debug/
 *.h5
 
 .idea
-
 main.py
-
 data_example.csv
-
 optimization.py
-
 rnn.py
