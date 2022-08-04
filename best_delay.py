@@ -1,6 +1,6 @@
 
 """
-Compute the best energy consumption delay with least RMSE among all different delays combination.
+Compute the best energy consumption delay with least RMSE among all different delays combination(1-12 hours).
 Basis to apply  function (14) from "PREDICTIVE OPTIMIZATION OF HEAT DEMAND UTILIZING HEAT STORAGE CAPACITY OF BUILDINGS"
 by Petri Hietaharju.
 """
@@ -136,7 +136,7 @@ def tuning(delay_cand,iter):
 
 #main
 # Download the downsampled data frame from csv-file.
-raw_data = pd.read_csv(r'3452_building_data_0827.csv')
+raw_data = pd.read_csv(r'data/3452_building_data_0827.csv')
 
 delay_cand = []
 for i in range(12):

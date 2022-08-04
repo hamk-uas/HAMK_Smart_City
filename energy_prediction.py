@@ -183,7 +183,7 @@ def plot_energy(lr, X_test, y_test,para,res,f,max_lh,min_lh):
     plt.grid()
     plt.show()
 
-raw_data = pd.read_csv(r'3452_building_data_0827.csv')
+raw_data = pd.read_csv(r'data/3452_building_data_0827.csv')
 # prediction interval
 f=[4,8]
 X_train, y_train, X_test, y_test,para,max_lh,min_lh = preprocess_energy(raw_data)

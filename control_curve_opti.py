@@ -278,7 +278,7 @@ def plot(raw_data,max_in,min_in,max_ra,min_ra,max_out,min_out,lr,intemp):
 
 #main
 # Download the downsampled data frame from csv-file.
-raw_data = pd.read_csv(r'3452_building_data_0827.csv')
+raw_data = pd.read_csv(r'data/3452_building_data_0827.csv')
 X_train, y_train, X_test, y_test,max_in,min_in,max_ra,min_ra,max_out,min_out = preprocess(raw_data)
 lr= build_lr(X_train, y_train)
 

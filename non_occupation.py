@@ -1,8 +1,7 @@
 """
 2022-06-07
-Linear model to predict inside temperature for different prediction horizons based on Tampere data.
-
-Energy optimization to reduce the inside temperature during the time the building is not occupied.
+Linear model to predict inside temperature for different prediction intervals based on Tampere data.
+Energy optimization to reduce the inside temperature when the building is not occupied(16.00-8.00).
 """
 
 
@@ -277,8 +276,7 @@ def plot_cut(raw_data,f,setting_temp,next_morning,start_hour,):
 
 
 #main
-# raw_data = pd.read_csv(r'3452_building_data_0827.csv')
-raw_data = pd.read_csv(r'3452_building_data_0827.csv')
+raw_data = pd.read_csv(r'data/3452_building_data_0827.csv')
 # meature inside temperature every f(int,>1) hours
 f=48
 # set target temperature

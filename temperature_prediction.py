@@ -239,7 +239,7 @@ def plot_preds_time(lr, X_test, y_test, fl,para,max_,min_):
     plt.show()
 
 #main
-raw_data = pd.read_csv(r'3452_building_data_0827.csv')
+raw_data = pd.read_csv(r'data/3452_building_data_0827.csv')
 X_train, y_train, X_test, y_test,max_,min_,para = preprocess_Tampere(raw_data)
 lr = build_lr(X_train.loc[:,para], y_train)
 f=[4,8,12,24,48]
