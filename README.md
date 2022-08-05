@@ -9,7 +9,7 @@ The branch  'Talotohtori' focuses on the analysis of the Talotohtori buildings, 
 * __best_delay.py__:  A script to compute best energy consumption delay with least RMSE among all different delays combination.
 * __temperature_prediction.py__: A script to predict inside temperature for different prediction intervals.
 * __energy_prediction.py__: A script to predict energy consumption.
-* __optimization.py__: A script for energy optimization to reduce the inside temperature during the time the building is occupied.
+* __occupation.py__: A script for energy optimization to reduce the inside temperature during the time the building is occupied.
 * __non_occupation.py__: A script for energy optimization to reduce the inside temperature when the building is not occupied.
 * __control_curve_opti.py__: A script for control curve optimization.
 
