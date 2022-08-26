@@ -1,0 +1,1 @@
+{"name": "GRU", "quant": ["Energy_consumption"], "seq": 12, "fut": 0, "parameters": ["District_heat_temperature", "Domestic_water_network_1_temperature", "Ventilation_network_1_temperature", "Outside_temperature_average", "Outside_humidity", "Solar_irradiance", "Radiator_network_1_temperature_setpoint"], "date": "2022-07-06"}
